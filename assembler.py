@@ -1,28 +1,27 @@
 import re
 from constants import TYPE_TO_CAST_PY
 from ops import *
-from operator import add, sub, mul, div
+from operator import add, sub, mul, div, eq, ne
 
-PUSH_RE = re.compile(r'push_[ilfd]')
 ADD_RE = re.compile(r'add_[ilfd]')
 SUB_RE = re.compile(r'sub_[ilfd]')
 MUL_RE = re.compile(r'mul_[ilfd]')
 DIV_RE = re.compile(r'div_[ilfd]')
+EQ_RE = re.compile(r'eq_[ilfd]')
+NEQ_RE = re.compile(r'neq_[ilfd]')
+
+PUSH_RE = re.compile(r'push_[ilfd]')
 POP_RE = re.compile(r'pop_[ilfd]')
+CLONE_RE = re.compile(r'clone_[ilfd]')
 PRINT_RE = re.compile(r'print_[ilfd]')
+MEMSTORE_RE = re.compile(r'memstore_[ilfd]')
+MEMREAD_RE = re.compile(r'memread_[ilfd]')
 
 SPAWN_RE = re.compile(r'spawn_thread')
 EXIT_RE = re.compile(r'exit')
-
-
-def parse_file(fname):
-    program = []
-    with open(fname) as f:
-        for line in f:
-            inst = to_inst(line)
-            if inst:
-                program.append(inst)
-    return program
+BEQ_RE = re.compile(r'b')
+J_RE = re.compile(r'j')
+JS_RE = re.compile(r'js')
 
 def get_unary_arg(type1, tokens):
     arg1 = tokens[1]
@@ -33,39 +32,165 @@ def get_binary_arg(type1, type2, tokens):
     arg2 = tokens[2]
     return TYPE_TO_CAST_PY[type1](arg1), TYPE_TO_CAST_PY[type2](arg2)
 
-def to_inst(line):
-    line = line.strip()
-    if line.startswith('#'): #Comment
-        return None
-    tokens = re.split('\s+', line)
+def to_inst(tokens, line_num=-1):
+    """
+    Converts a list of tokens into an instruction object
+    """
     op = tokens[0]
+    # For typed operators, op[-1] contains the type (i, f, l, or d)
     if op == '':
         return None
     elif PUSH_RE.match(op):
-        type = op[-1]
-        return BTZPush(type, get_unary_arg(type, tokens))
+        return BTZPush(op[-1], get_unary_arg(op[-1], tokens))
     elif POP_RE.match(op):
-        type = op[-1]
-        return BTZPop(type)
+        return BTZPop(op[-1])
+    elif CLONE_RE.match(op):
+        return BTZClone(op[-1])
     elif PRINT_RE.match(op):
-        type = op[-1]
-        return BTZPrint(type)
+        return BTZPrint(op[-1])
+    elif MEMSTORE_RE.match(op):
+        return BTZStoreMem(op[-1])
+    elif MEMREAD_RE.match(op):
+        return BTZReadMem(op[-1])
     elif ADD_RE.match(op):
-        type = op[-1]
-        return BTZBinaryOp(type, add)
+        return BTZBinaryOp(op[-1], add)
     elif SUB_RE.match(op):
-        type = op[-1]
-        return BTZBinaryOp(type, sub)
+        return BTZBinaryOp(op[-1], sub)
     elif MUL_RE.match(op):
-        type = op[-1]
-        return BTZBinaryOp(type, mul)
+        return BTZBinaryOp(op[-1], mul)
     elif DIV_RE.match(op):
-        type = op[-1]
-        return BTZBinaryOp(type, div)
+        return BTZBinaryOp(op[-1], div)
+    elif EQ_RE.match(op):
+        return BTZBinaryOp(op[-1], eq)
+    elif NEQ_RE.match(op):
+        return BTZBinaryOp(op[-1], ne)
     elif SPAWN_RE.match(op):
         arg1, arg2 = get_binary_arg('i', 'i', tokens)
         return BTZSpawnThread(arg1, arg2)
+    elif BEQ_RE.match(op):
+        return BTZBeq(get_unary_arg('i', tokens))
+    elif J_RE.match(op):
+        return BTZJumpOffset(get_unary_arg('i', tokens))
+    elif JS_RE.match(op):
+        return BTZJumpStack()
     elif EXIT_RE.match(op):
         return BTZExit()
     else:
-        raise ValueError("Unknown op: ", op)
+        raise AssemblerError(line_num, "Unknown op: %s" % op)
+
+##
+# PREPROCESSER. Resolves labels and strips comments
+##
+
+LABELED_INSTRUCTIONS = [BEQ_RE, J_RE, SPAWN_RE]  # Label in first arg
+
+class PreprocesserError(Exception):
+    def __init__(self, line, msg):
+        super(PreprocesserError, self).__init__('On line %d: %s' % (line, msg))
+
+class AssemblerError(Exception):
+    def __init__(self, line, msg):
+        super(AssemblerError, self).__init__('On line %d: %s' % (line, msg))
+
+def islabel(line):
+    return line.startswith('.')
+
+def tokenize(fname):
+    """
+    Strips comments and empty lines. Tokenizes
+    :param fname:
+    :return: An iterator through (tokens, line, line_count, inst_count).
+        tokens = A list of string tokens
+        line = The entire line as it appears in file (trailing whitespace stripped)
+        line_count = Line count in original file
+        inst_count = Count of line in program memory. Incremented once per instruction line.
+    """
+    with open(fname) as f:
+        line_count = 0
+        inst_count = 0
+        for line in f:
+            line_count += 1
+            line = line.strip()
+            if len(line) == 0:
+                continue
+            if line.startswith('#'):
+                continue
+            inst_count += 1
+            if islabel(line):
+                inst_count -= 1
+            tokens = re.split('\s+', line)
+            yield (tokens, line, line_count, inst_count)
+
+def parse_preprocessed_code(preprocessed_iter):
+    program = []
+    for tokens, line, line_num, inst_count in preprocessed_iter:
+        inst = to_inst(tokens, line_num=line_num)
+        if not inst:
+            raise AssemblerError(line_num, 'Cannot parse line: %s' % line)
+        program.append(inst)
+    return program
+
+
+def map_labels(tokenized):
+    """
+    Finds out which labels map to which positions in the code.
+    Used by resolve_labels to map labels to code offsets.
+
+    :param tokenized: An iterator through code generated by tokenizer
+    """
+    label_map = {}
+    for tokens, line, line_num, inst_count in tokenized:
+        if islabel(line):
+            if len(tokens) != 1:
+                raise PreprocesserError(line_num, 'Bad label line: %s' % line)
+            label = line[1:]
+            if label in label_map:
+                raise PreprocesserError(line_num, 'Redefined label: %s' % label)
+            label_map[label] = inst_count  # Map label to next instruction
+    return label_map
+
+
+def resolve_labels(tokenized, label_map):
+    """
+    Replaces all labels in code with pc offsets.
+
+    :param tokenized: An iterator through code generated by tokenizer
+    :param label_map: A dictionary from {label: code index} generated by map_labels
+    :return: An iterator through (tokens, line, line_num, inst_count) with all labels replaced
+        by offsets.
+    """
+    for tokens, line, line_num, inst_count in tokenized:
+        is_labeled_line = False
+        for label_re in LABELED_INSTRUCTIONS:
+            if label_re.match(tokens[0]):
+                is_labeled_line = True
+
+        if is_labeled_line:
+            assert len(tokens) == 2 or len(tokens) == 3
+            assert tokens[1].startswith('.')
+            label = tokens[1][1:]
+            if label not in label_map:
+                raise PreprocesserError(line_num, 'Unknown label: %s' % label)
+            tokens[1] = str(label_map[label])
+            tokens[1] = str(label_map[label]-inst_count+1)
+            yield (tokens, line, line_num, inst_count)
+        elif not islabel(line):
+            yield (tokens, line, line_num, inst_count)
+
+
+def parse_with_preprocess(fname):
+    """
+    :param fname: Filename containing non-preprocessed code
+    :return: A list of instruction objects
+    """
+    label_map = map_labels(tokenize(fname))
+    preprocessed_code = resolve_labels(tokenize(fname), label_map)
+    return parse_preprocessed_code(preprocessed_code)
+
+
+def parse_no_preprocess(fname):
+    """
+    :param fname: Filename containing preprocessed code
+    :return: A list of instruction objects
+    """
+    return parse_preprocessed_code(tokenize(fname))

@@ -3,8 +3,9 @@ from constants import TYPE_TO_SIZE, TYPE_TO_STRUCT
 
 
 class VMStack(object):
+    """ Stack of 4-byte works
+    """
     def __init__(self):
-        # Stack of 4-byte words
         self._stack = []
 
     def push_4(self, word):
@@ -59,6 +60,9 @@ class VMStack(object):
         return struct.unpack(TYPE_TO_STRUCT[type], s)[0]
 
     def clone(self, top_bytes=0):
+        """
+        Returns a new stack initialized with the top n bytes of this stack
+        """
         new_stack = VMStack()
         new_stack._stack = self._stack[-top_bytes:]
         return new_stack

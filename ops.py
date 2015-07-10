@@ -28,7 +28,7 @@ class BTZExit(BTZInst):
 
 
 class BTZSpawnThread(BTZInst):
-    def __init__(self, top_bytes, pc_offset):
+    def __init__(self, pc_offset, top_bytes):
         super(BTZSpawnThread, self).__init__()
         self.top_bytes = top_bytes
         self.pc_offset = pc_offset
@@ -80,6 +80,17 @@ class BTZPop(BTZInst):
         thread.state.pc += 1
 
 
+class BTZClone(BTZInst):
+    def __init__(self, type):
+        super(BTZClone, self).__init__()
+        self.type = type
+
+    def execute(self, thread):
+        val = thread.state.stack.peek(self.type)
+        thread.state.stack.push(self.type, val)
+        thread.state.pc += 1
+
+
 class BTZPrint(BTZInst):
     def __init__(self, type):
         super(BTZPrint, self).__init__()
@@ -90,4 +101,59 @@ class BTZPrint(BTZInst):
         if thread.runtime.debug:
             print '[%d]'%thread.id,
         print val
+        thread.state.pc += 1
+
+
+class BTZBeq(BTZInst):
+    def __init__(self, pc_offset):
+        super(BTZBeq, self).__init__()
+        self.pc_offset = pc_offset
+
+    def execute(self, thread):
+        val = thread.state.stack.pop('i')
+        if val:
+            thread.state.pc += self.pc_offset
+        else:
+            thread.state.pc += 1
+
+
+class BTZJumpOffset(BTZInst):
+    def __init__(self, pc_offset):
+        super(BTZJumpOffset, self).__init__()
+        self.pc_offset = pc_offset
+
+    def execute(self, thread):
+        thread.state.pc += self.pc_offset
+
+
+class BTZJumpStack(BTZInst):
+    def __init__(self):
+        super(BTZJumpStack, self).__init__()
+
+    def execute(self, thread):
+        val = thread.state.stack.pop('i')
+        thread.state.pc = val
+
+
+class BTZStoreMem(BTZInst):
+    def __init__(self, type):
+        super(BTZStoreMem, self).__init__()
+        self.type = type
+
+    def execute(self, thread):
+        idx = thread.state.stack.pop('i')
+        val = thread.state.stack.pop(self.type)
+        thread.runtime.memory.store(self.type, idx, val)
+        thread.state.pc += 1
+
+
+class BTZReadMem(BTZInst):
+    def __init__(self, type):
+        super(BTZReadMem, self).__init__()
+        self.type = type
+
+    def execute(self, thread):
+        idx = thread.state.stack.pop('i')
+        val = thread.runtime.memory.read(self.type, idx)
+        thread.state.stack.push(self.type, val)
         thread.state.pc += 1

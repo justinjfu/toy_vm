@@ -15,18 +15,24 @@ mul_d
 print_d
 pop_d
 
-spawn_thread 0 3
-spawn_thread 0 2
-exit
 
-spawn_thread 0 3
-spawn_thread 0 2
-exit
+spawn_thread .spawn1 0
+spawn_thread .spawn1 0
+j .exit
 
+.spawn1
+spawn_thread .spawn2 0
+spawn_thread .spawn2 0
+j .exit
+
+.spawn2
 push_i 123
 print_i
 pop_i
 push_i 124
 print_i
 pop_i
+j .exit
+
+.exit
 exit

@@ -3,15 +3,16 @@ Implementation of VM state
 """
 
 from stack import VMStack
+from memory import VMMemory
 
 MASTER_THREAD_ID = 0
 
 
 class VMRuntime(object):
-    def __init__(self, program):
+    def __init__(self, program, mem_bytes):
         # program = list of instructions
         self.program = program
-        self.memory = None  # TODO
+        self.memory = VMMemory(mem_bytes)
         self.threads = {}
         self.done = False
         self.debug = False
