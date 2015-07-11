@@ -17,7 +17,7 @@ class Labeler(object):
     def get_label(self, code_line):
         return 'lbl_%d' % code_line
 
-def compilecode(program, out_filename):
+def compilecode(program, out_filename, stack_size=1024, mem_size=256):
     # Convert program to C code
     midfile = out_filename+'.mid.tmp'
     with open(midfile, 'w') as outf:
@@ -26,6 +26,10 @@ def compilecode(program, out_filename):
     # Paste together preamble/C code/epilogue
     c_file = out_filename+'.c'
     with open(c_file, 'w') as outf:
+        # Write constants
+        outf.write('#define STACK_SIZE %d\n' % stack_size);
+        outf.write('#define MEM_SIZE %d\n' % mem_size);
+
         with open(PREAMBLE, 'r') as infile:
             outf.write(infile.read())
         with open(midfile, 'r') as infile:

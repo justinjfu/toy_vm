@@ -9,7 +9,7 @@ MASTER_THREAD_ID = 0
 
 
 class VMRuntime(object):
-    def __init__(self, program, mem_bytes, n_threads=4):
+    def __init__(self, program, mem_bytes, stack_size, n_threads=4):
         # program = list of instructions
         self.program = program
         self.memory = VMMemory(mem_bytes)

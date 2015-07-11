@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 #define push(TYPE, val) btz_push_ ## TYPE(stack, &stack_ptr, val)
 #define peek(TYPE) btz_peek_ ## TYPE(stack, &stack_ptr)
@@ -27,6 +28,10 @@ typedef double float64_t;
 void btz_push_i(int32_t* stack, uint32_t *stack_ptr, int32_t val){
     stack[*stack_ptr] = val;
     *stack_ptr += 1;
+    if(*stack_ptr> STACK_SIZE){
+        printf("Warning: Stack overflow. Exiting.\n");
+        exit(1);
+    }
 }
 
 int32_t btz_pop_i(int32_t* stack, uint32_t *stack_ptr){
@@ -39,10 +44,18 @@ int32_t btz_peek_i(int32_t* stack, uint32_t *stack_ptr){
 }
 
 void btz_memstore_i(int32_t* mem, int32_t idx, int32_t val){
+    if(idx> MEM_SIZE || idx<0){
+        printf("Out of bounds memory access %d. Exiting\n", idx);
+        exit(1);
+    }
     mem[idx] = val;
 }
 
 int32_t btz_memread_i(int32_t* mem, int32_t idx){
+    if(idx> MEM_SIZE || idx<0){
+        printf("Out of bounds memory access %d. Exiting\n", idx);
+        exit(1);
+    }
     return mem[idx];
 }
 
@@ -52,8 +65,8 @@ int32_t ai=0, bi=0;
 int64_t al=0, bl=0;
 float32_t af=0, bf=0;
 float64_t ad=0, bd=0;
-int32_t mem[100];
-int32_t stack[1024];
+int32_t mem[MEM_SIZE];
+int32_t stack[STACK_SIZE];
 uint32_t stack_ptr = 0;
 
 // BEGIN GENERATED CODE
