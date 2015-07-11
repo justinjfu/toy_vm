@@ -32,7 +32,7 @@ def get_binary_arg(type1, type2, tokens):
     arg2 = tokens[2]
     return TYPE_TO_CAST_PY[type1](arg1), TYPE_TO_CAST_PY[type2](arg2)
 
-def to_inst(tokens, line_num=-1):
+def to_inst(tokens, line_num=-1, code_num=-1):
     """
     Converts a list of tokens into an instruction object
     """
@@ -41,40 +41,40 @@ def to_inst(tokens, line_num=-1):
     if op == '':
         return None
     elif PUSH_RE.match(op):
-        return BTZPush(op[-1], get_unary_arg(op[-1], tokens))
+        return BTZPush(line_num, code_num, op[-1], get_unary_arg(op[-1], tokens))
     elif POP_RE.match(op):
-        return BTZPop(op[-1])
+        return BTZPop(line_num, code_num, op[-1])
     elif CLONE_RE.match(op):
-        return BTZClone(op[-1])
+        return BTZClone(line_num, code_num, op[-1])
     elif PRINT_RE.match(op):
-        return BTZPrint(op[-1])
+        return BTZPrint(line_num, code_num, op[-1])
     elif MEMSTORE_RE.match(op):
-        return BTZStoreMem(op[-1])
+        return BTZStoreMem(line_num, code_num, op[-1])
     elif MEMREAD_RE.match(op):
-        return BTZReadMem(op[-1])
+        return BTZReadMem(line_num, code_num, op[-1])
     elif ADD_RE.match(op):
-        return BTZBinaryOp(op[-1], add)
+        return BTZBinaryOp(line_num, code_num, op[-1], add)
     elif SUB_RE.match(op):
-        return BTZBinaryOp(op[-1], sub)
+        return BTZBinaryOp(line_num, code_num, op[-1], sub)
     elif MUL_RE.match(op):
-        return BTZBinaryOp(op[-1], mul)
+        return BTZBinaryOp(line_num, code_num, op[-1], mul)
     elif DIV_RE.match(op):
-        return BTZBinaryOp(op[-1], div)
+        return BTZBinaryOp(line_num, code_num, op[-1], div)
     elif EQ_RE.match(op):
-        return BTZBinaryOp(op[-1], eq)
+        return BTZBinaryOp(line_num, code_num, op[-1], eq)
     elif NEQ_RE.match(op):
-        return BTZBinaryOp(op[-1], ne)
+        return BTZBinaryOp(line_num, code_num, op[-1], ne)
     elif SPAWN_RE.match(op):
         arg1, arg2 = get_binary_arg('i', 'i', tokens)
-        return BTZSpawnThread(arg1, arg2)
+        return BTZSpawnThread(line_num, code_num, arg1, arg2)
     elif BEQ_RE.match(op):
-        return BTZBeq(get_unary_arg('i', tokens))
+        return BTZBeq(line_num, code_num, get_unary_arg('i', tokens))
     elif J_RE.match(op):
-        return BTZJumpOffset(get_unary_arg('i', tokens))
+        return BTZJumpOffset(line_num, code_num, get_unary_arg('i', tokens))
     elif JS_RE.match(op):
-        return BTZJumpStack()
+        return BTZJumpStack(line_num, code_num)
     elif EXIT_RE.match(op):
-        return BTZExit()
+        return BTZExit(line_num, code_num)
     else:
         raise AssemblerError(line_num, "Unknown op: %s" % op)
 
@@ -124,7 +124,7 @@ def tokenize(fname):
 def parse_preprocessed_code(preprocessed_iter):
     program = []
     for tokens, line, line_num, inst_count in preprocessed_iter:
-        inst = to_inst(tokens, line_num=line_num)
+        inst = to_inst(tokens, line_num=line_num, code_num=inst_count)
         if not inst:
             raise AssemblerError(line_num, 'Cannot parse line: %s' % line)
         program.append(inst)

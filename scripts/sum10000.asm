@@ -1,4 +1,4 @@
-# Sums numbers from 1 to 100
+# Sums numbers from 1 to N
 
 push_i 0
 
@@ -15,9 +15,9 @@ push_i 0
     push_i 0
     memstore_i
 
-    # Check if i == 100
+    # Check if i == N
     clone_i
-    push_i 100
+    push_i 10000
     neq_i
     b .loop
 j .print_sum
